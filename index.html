@@ -1,0 +1,441 @@
+<html>
+
+<head>
+    <title>Passback Generator V2 (beta)</title>
+    <link href="./images/favicon.ico" rel="icon" type="image/x-icon">
+    <link href="./css/bootstrap.css" rel="stylesheet" type="text/css">
+    <link href="./css/all.css" rel="stylesheet" type="text/css">
+    <link href="./css/desert.css" rel="stylesheet" type="text/css">
+    <!-- jQuery library -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script src="./js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/google/code-prettify@master/loader/run_prettify.js"></script>
+    <script>
+        var pbSelector = "body"
+        var pbMin = 0
+        var adjustedPbMin = 0
+        var pbHtml = ""
+        var pbOutputScript = ""
+        var pbIframeW = 300;
+        var pbIframeH = 250;
+        var pbIsGPT = false;
+        var pbIsIframe = false;
+
+        function init() {
+
+            // debugger
+            url = new URL(window.location.href);
+
+            if (url.searchParams.get('pbSelector')) {
+                pbSelector = url.searchParams.get('pbSelector');
+            }
+            if (url.searchParams.get('pbMin')) {
+                pbMin = url.searchParams.get('pbMin');
+                adjustedPbMin = pbMin > 0 ? pbMin - 1 : 0
+            }
+            if (url.searchParams.get('pbHtml')) {
+                pbHtml = url.searchParams.get('pbHtml');
+                pbIsGPT = pbHtml.includes("tag/js/gpt.js");
+                $("#generateButton").prop('disabled', false);
+            }
+            if (url.searchParams.get('pbIsIframe')) {
+                pbIsIframe = url.searchParams.get('pbIsIframe') == 'true';
+            }
+            if (url.searchParams.get('pbIframeW')) {
+                pbIframeW = url.searchParams.get('pbIframeW');
+            }
+            if (url.searchParams.get('pbIframeH')) {
+                pbIframeH = url.searchParams.get('pbIframeH');
+            }
+            
+            $("#inputPbSelector").val(pbSelector);
+            $(".pbSelector").html(pbSelector);
+
+            $("#inputPbMin").val(pbMin);
+            $(".pbMin").html(pbMin);
+
+            $("#inputPbHtml").val(pbHtml);
+            $("#inputIframeW").val(pbIframeW);
+            $("#inputIframeH").val(pbIframeH);
+            escapedPassback = escapePassback(pbHtml);
+            
+            $(".adjustedPbMin").html(adjustedPbMin);
+            
+
+            if (pbIsIframe) {
+                $("#switchIframe").prop("checked", true);
+                $("#inputIframeW").prop('disabled', false);
+                $("#inputIframeH").prop('disabled', false);
+            } else {
+                $("#inputIframeW").prop('disabled', true);
+                $("#inputIframeH").prop('disabled', true);
+            }
+
+            if (pbIsGPT || pbIsIframe) {
+                escapedPassback = "<style type=\\'text\\/css\\'> body{ margin: 0; padding: 0 }<\\/style>" + escapedPassback
+            }
+
+            if (pbIsGPT) {
+                $(".escapedPassback").html(escapedPassback.replace(/'/g, "\"").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(
+                    /gpt.js\\"&gt;/g, "gpt.js\\\"&gt; \" + resizeDFP + \"").replace(/gpt.js\\'&gt;/g, "gpt.js\\\'&gt; \" + resizeDFP + \""));
+                $(".iframeW").html(1);
+                $(".iframeH").html(1);
+            } else {
+                $(".escapedPassback").html(escapedPassback.replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+                $(".iframeW").html(pbIframeW);
+                $(".iframeH").html(pbIframeH);
+            }
+
+            if (pbMin != "" && pbHtml != "" && pbSelector != "") {
+                $(".after_generate").removeClass('d-none'); //show passback output if fields are not empty
+                if (pbIsGPT) {
+                    $(".gpt_only").removeClass('d-none');
+                    pbOutputScript = $("#gpt_pbOutput").text();
+                } else if (pbIsIframe) {
+                    $(".iframe_only").removeClass('d-none');
+                    pbOutputScript = $("#iframe_pbOutput").text();
+                } else {
+                    $(".std_only").removeClass('d-none');
+                    pbOutputScript = $("#std_pbOutput").text();
+                }
+
+                testPb();
+
+            } else {
+                $(".before_generate").removeClass('d-none'); //show passback output if fields are not empty
+            }
+
+        }
+
+        function resetPb() {
+            console.log(window.location.href.split('?')[0])
+                // var url = location.protocol + '//' + location.host + location.pathname;
+            window.location.replace(window.location.href.split('?')[0]);
+        }
+        function escapePassback(string) {
+            return ('' + string).replace(/["'\\\n\r\u2028\u2029]/g, function (character) {
+            // Escape all characters not included in SingleStringCharacters and
+            // DoubleStringCharacters on
+            // http://www.ecma-international.org/ecma-262/5.1/#sec-7.8.4
+            switch (character) {
+                case '"':
+                case "'": 
+                case '\\':
+                    return '\\' + character
+                // Four possible LineTerminator characters need to be escaped:
+                case '\n':
+                    return ' '
+                case '\r':
+                    return ' '
+                case '\u2028':
+                    return ' '
+                case '\u2029':
+                    return ' '
+            }
+            })
+        }
+        function generatePb() {
+            pbSelector = $("#inputPbSelector").val();
+            pbMin = $("#inputPbMin").val()
+            adjustedPbMin = pbMin > 0 ? pbMin - 1 : 0;
+            pbHtml = $("#inputPbHtml").val();
+            escapedPassback = escapePassback(pbHtml);
+            pbIsIframe = $("#switchIframe").is(':checked');
+            pbIframeW = $("#inputIframeW").val();
+            pbIframeH = $("#inputIframeH").val();
+
+            var url = window.location.href;
+            if (url.indexOf("?") > 0) {
+                url = url.substring(0, url.indexOf("?"));
+            }
+            url += "?pbIsIframe=" + pbIsIframe + "&pbIframeW=" + pbIframeW + "&pbIframeH=" + pbIframeH +
+                "&pbSelector=" + encodeURIComponent(pbSelector) + "&pbMin=" + pbMin + "&pbHtml=" + encodeURIComponent(pbHtml);
+            window.location.replace(url);
+        }
+
+        function testPb() {
+
+            //clean all passback test iframes
+            $("#iframeContainer > iframe").remove();
+
+            //append new passback test iframe
+            var pbIframe = document.createElement("iframe");
+            pbIframe.width = "100%";
+            pbIframe.height = 500;
+            pbIframe.border = 1;
+            $("#iframeContainer").append(pbIframe);
+
+            var myscript = document.createElement('script');
+            myscript.type = 'text/javascript';
+            //adapt slot and min to test iframe
+            myscript.innerHTML = pbOutputScript.replace(/^ *var passbackSlot.*$/m,
+                'var passbackSlot = window.document.querySelectorAll("body")[0];');
+            pbIframe.contentDocument.head.appendChild(myscript);
+        }
+
+        function copyPb() {
+            navigator.clipboard.writeText(pbOutputScript).then(function() {
+                // $('#copyAlert').show()
+                $('#copyButtonOff').addClass('d-none');
+                $('#copyButtonOn').removeClass('d-none');
+
+                setTimeout(function() {
+                    $('#copyButtonOn').addClass('d-none');
+                    $('#copyButtonOff').removeClass('d-none');
+                }, 3000);
+            }, function(err) {
+                console.error('Async: Could not copy text: ', err);
+            });
+        }
+
+        $(document).ready(function() {
+            init();
+            $('#switchIframe').change(function() {
+                if (this.checked) {
+                    $("#inputIframeW").prop('disabled', false);
+                    $("#inputIframeH").prop('disabled', false);
+                } else {
+
+                    $("#inputIframeW").prop('disabled', true);
+                    $("#inputIframeH").prop('disabled', true);
+                }
+            });
+
+            $('#inputPbHtml').keyup(function() {
+                $('#generateButton').prop('disabled', this.value == "" ? true : false);
+            })
+
+        });
+    </script>
+</head>
+
+<body data-gr-c-s-loaded="true">
+
+    <div class="container">
+        <div class="jumbotron mt-3">
+            <h1>Passback Generator V2 (beta)</h1>
+            <p class="lead">
+                A passback is a HTML code that will be executed in case of no Ad available.
+                <br> This HTML code cannot be executed as is by Teads, we need to translate it into a Javasctipt version before integrating it with the integrator.
+                <br> This tool was built to help generating executable Javascript from HTML passbacks.</p>
+        </div>
+
+        <div class="row">
+            <div class="col-4">
+                <form class="shadow p-3 mb-5 bg-white rounded">
+
+                    <div class="form-group">
+                        <label for="exampleFormControlTextarea1">
+                            <i class="fab fa-html5"></i> Passback HTML code</label>
+                        <textarea class="form-control" id="inputPbHtml" rows="8" style="font-size: 8pt" placeholder="HTML code here..."></textarea>
+                        <small class="form-text text-muted">
+                            The code should be a valid HTML <a href="https://jsonformatter.org/html-validator"
+                                class="badge badge-info" target="_blank">
+                                <i class="fas fa-spell-check"></i> check HTML here</a>
+                        </small>
+                    </div>
+                    <hr />
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="firstName">Slot selector</label>
+                            <input type="text" class="form-control" id="inputPbSelector" placeholder="" value="" required="">
+                            <small class="form-text text-muted">
+                                Enter a CSS selector <a href="https://www.w3schools.com/cssref/css_selectors.asp"
+                                    class="badge badge-info" target="_blank">
+                                    <i class="fas fa-info-circle"></i> Info</a>
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="lastName">min slot</label>
+                            <input type="text" class="form-control" id="inputPbMin" placeholder="" value="" required="">
+                            <small class="form-text text-muted">
+                                Enter a number
+                            </small>
+                        </div>
+                    </div>
+
+                    <hr />
+                    <div class="custom-control custom-switch">
+                        <input type="checkbox" class="custom-control-input" id="switchIframe">
+                        <label class="custom-control-label" for="switchIframe">Use iframe</label>
+                    </div>
+
+                    <div class="row bg-light">
+                        <div class="col-md-6">
+                            <label for="firstName">iframe width</label>
+                            <input type="text" class="form-control" id="inputIframeW" placeholder="" value="" required="">
+                            <small class="form-text text-muted">
+                                Enter a number
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="lastName">iframe Height</label>
+                            <input type="text" class="form-control" id="inputIframeH" placeholder="" value="" required="">
+                            <small class="form-text text-muted">
+                                Enter a number
+                            </small>
+                        </div>
+                    </div>
+
+                    <hr />
+                    <button id="generateButton" class="btn btn-primary btn-lg btn-block" type="button" onclick="generatePb()" disabled>Generate passback code <i class="fas fa-rocket"></i>
+                    </button>
+                    <button class="btn btn-warning btn-lg btn-block" type="button" onclick="resetPb()">Reset <i class="fas fa-redo"></i>
+                    </button>
+                </form>
+            </div>
+
+            <div class="col-4">
+                <div id="pbBlock" class="p-3 mb-2 bg-light">
+                    <label><i class="fab fa-js"></i> Passback Javascript code</label>
+
+                    <div class="before_generate alert alert-secondary d-none" role="alert">
+                        <i class="fas fa-exclamation-circle"></i> Please fill up the form and hit the Generate button
+                    </div>
+
+                    <div class="after_generate alert alert-success d-none" role="alert"><small>
+                            <i class="fas fa-check"></i> All set! Please test and integrate the Javascript code below
+                        </small></div>
+
+                    <div class="gpt_only alert alert-warning d-none" role="alert">
+                        <small><i class="fas fa-exclamation-circle"></i> Hmmm, it looks to be a Google tag... <br />
+                            DFP passback are particular, they use document.write() which could overwrite the original
+                            content of the page.
+                            To solve this problem, we automatically use an &lt;iframe&gt;.</small>
+                    </div>
+
+                    <div class="after_generate mb-3 text-center  d-none" role="alert">
+                        <button id="copyButtonOff" class="btn btn-outline-primary btn-md" type="button" onclick="copyPb()">Copy to clipboard <i class="fas fa-copy"></i>
+                        </button>
+                        <button id="copyButtonOn" class="btn btn-outline-success btn-md d-none" type="button" onclick="copyPb()">Copied <i class="fas fa-check-double"></i>
+                        </button>
+                    </div>
+
+                    <pre class="std_only shadow p-3 mb-5 rounded d-none prettyprint">
+                                            <code>
+                                                <small id="std_pbOutput">
+/* jshint ignore:start*/
+var passbackHtml = "<mark class="escapedPassback"></mark>";
+
+var passbackSlot = window.top.document.querySelectorAll("<mark class="pbSelector"></mark>")[<mark class="adjustedPbMin"></mark>];
+
+var wrapper = new DOMParser().parseFromString(passbackHtml, "text/html");
+var body = wrapper.getElementsByTagName("body")[0];
+
+function cloneAttributes(element, sourceNode) {
+    let attr;
+    let attributes = Array.prototype.slice.call(sourceNode.attributes);
+    while (attr = attributes.pop()) {
+        element.setAttribute(attr.nodeName, attr.nodeValue);
+    }
+    element.innerHTML = sourceNode.innerHTML;
+}
+
+[].forEach.call(body.children, child => {
+    passbackSlot.parentNode.insertBefore(child, passbackSlot.nextSibling);
+});
+
+var elements = wrapper.getElementsByTagName("script");
+[].forEach.call(elements, element => {
+
+    if (element.src != "") {
+        var s = window.document.createElement("script");
+        cloneAttributes(s, element);
+        passbackSlot.parentNode.insertBefore(s, passbackSlot.nextSibling);
+    } else {
+        eval(element.innerHTML); 
+    }
+
+});
+/* jshint ignore:end*/
+                                                </small>
+                                            </code>
+                                        </pre>
+
+                    <pre class="iframe_only shadow p-3 mb-5 rounded d-none prettyprint">
+                                            <code>
+                                                <small id="iframe_pbOutput">
+
+/* jshint ignore:start*/
+
+var passbackHtml = "<mark class="escapedPassback"></mark>";
+
+var d = window.document;
+try {
+    d = window.top.document;
+} catch (e) {}
+var adFrame = d.createElement("iframe");
+adFrame.width = <mark class="iframeW"></mark>;
+adFrame.height = <mark class="iframeH"></mark>;
+adFrame.border = 0;
+adFrame.style.border = "0";
+adFrame.frameBorder = 0;
+adFrame.scrolling = "no";
+adFrame.style = "display: block; margin: auto;";
+
+var passbackSlot = d.querySelectorAll("<mark class="pbSelector"></mark>")[<mark class="adjustedPbMin"></mark>];
+
+passbackSlot.parentNode.insertBefore(adFrame, passbackSlot.nextSibling);
+adFrame.contentWindow.document.open("text/html");
+adFrame.contentWindow.document.write(passbackHtml);
+adFrame.contentWindow.document.close();
+/* jshint ignore:end*/
+                                                </small>
+                                            </code>
+                                        </pre>
+
+                    <pre class="gpt_only shadow p-3 mb-5 rounded d-none prettyprint">
+                                                                <code>
+                                                                    <small id="gpt_pbOutput">
+
+/* jshint ignore:start*/
+var resizeDFP = "googletag.pubads().addEventListener('slotRenderEnded', (_event) => {try {  var _creativeWidth = _event.size[0]; var _creativeHeight = _event.size[1]; var _thisFrame = window.frameElement; _thisFrame.style.width = _creativeWidth+'px'; _thisFrame.style.height = _creativeHeight+'px'; } catch (e) {} });";
+
+var passbackHtml = "<mark class="escapedPassback"></mark>";
+
+var d = window.document;
+try {
+    d = window.top.document;
+} catch (e) {}
+var adFrame = d.createElement("iframe");
+adFrame.width = <mark class="iframeW"></mark>;
+adFrame.height = <mark class="iframeH"></mark>;
+adFrame.border = 0;
+adFrame.style.border = "0";
+adFrame.frameBorder = 0;
+adFrame.scrolling = "no";
+adFrame.style = "display: block; margin: auto;";
+
+var passbackSlot = d.querySelectorAll("<mark class="pbSelector"></mark>")[<mark class="adjustedPbMin"></mark>];
+
+passbackSlot.parentNode.insertBefore(adFrame, passbackSlot.nextSibling);
+adFrame.contentWindow.document.open("text/html");
+adFrame.contentWindow.document.write(passbackHtml);
+adFrame.contentWindow.document.close();
+/* jshint ignore:end*/
+                                                                    </small>
+                                                                </code>
+                                                            </pre>
+
+                </div>
+            </div>
+            <div class="col-4">
+                <div id="testBlock" class="p-3 mb-2 bg-light">
+                    <label><i class="fas fa-photo-video"></i> Passback rendered creative</label>
+                    <div class="after_generate alert alert-secondary d-none" role="alert"><small>
+                            <i class="fas fa-exclamation-circle"></i> Nothing renders? No worries! Many reason could
+                            explain it:<br>
+                            - The passback renders only when executed on publisher website.<br>
+                            - The demand is not activated.<br>
+                            - Custom setups may be required.<br>
+                            Please share current URL to TS if you need help.</small></div>
+                    <div class="before_generate alert alert-secondary d-none" role="alert">
+                        <i class="fas fa-exclamation-circle"></i> Creative will be automatically displayed below once the passback will be generated.</div>
+                    <div id="iframeContainer">
+                    </div>
+                </div>
+            </div>
+        </div>
+</body>
+
+</html>
